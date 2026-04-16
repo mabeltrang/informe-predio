@@ -1,0 +1,9 @@
+streamlit
+requests
+geopandas
+fiona
+shapely
+pandas
+openpyxl
+xlrd
+matplotlib
