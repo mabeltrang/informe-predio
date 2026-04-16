@@ -1,9 +1,4 @@
 __pycache__/
 *.pyc
 .env
-*.shp
-*.shx
-*.dbf
-*.prj
-*.xls
-*.xlsx
+venv/

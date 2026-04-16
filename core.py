@@ -17,9 +17,9 @@ import geopandas as gpd
 
 logger = logging.getLogger(__name__)
 
-CARTOGRAFIA_DIR  = Path(os.getenv("CARTOGRAFIA_DIR", "/cartografia"))
-UC_SHP_NAME      = os.getenv("UC_SHAPEFILE_NAME",   "Unidades_Cronoestratigráficas.shp")
-EXCEL_NAME       = os.getenv("GEOFORMA_EXCEL_NAME", "Unidades geomorfologicas.xls")
+CARTOGRAFIA_DIR  = Path(os.getenv("CARTOGRAFIA_DIR", "./data"))
+UC_SHP_NAME      = os.getenv("UC_SHAPEFILE_NAME",   "Unidades_Cronoestratigraficas.shp")
+EXCEL_NAME       = os.getenv("GEOFORMA_EXCEL_NAME", "Diccionario_UC_Geomorfologia.xlsx")
 UC_SHP_PATH      = CARTOGRAFIA_DIR / UC_SHP_NAME
 EXCEL_PATH       = CARTOGRAFIA_DIR / EXCEL_NAME
 
