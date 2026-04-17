@@ -1,0 +1,6 @@
+gcc
+g++
+gdal-bin
+libgdal-dev
+spatialite-bin
+libsqlite3-mod-spatialite
