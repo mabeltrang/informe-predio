@@ -1,7 +1,7 @@
 import streamlit as st
 from core import (
     parse_kmz, fetch_power, calc_stats, make_charts,
-    get_geoforma, texto_clima, texto_geoforma,
+    get_geoforma, texto_clima, texto_geoforma, generate_docx,
     UC_SHP_PATH, EXCEL_PATH,
 )
 
@@ -71,3 +71,14 @@ if analizar and kmz_file is not None:
         st.text_area("", value=geo_txt, height=250, key="geo_txt", label_visibility="collapsed")
         st.download_button("Descargar texto geomorfología (.txt)", data=geo_txt,
                            file_name="geoforma.txt", mime="text/plain")
+
+    st.divider()
+    st.subheader("📄 Descargar Informe Completo")
+    docx_bytes = generate_docx(clima_txt, geo_txt, precip_png, temp_png)
+    st.download_button(
+        "Descargar consolidado en Word (.docx)", 
+        data=docx_bytes,
+        file_name="informe_predio.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        type="primary"
+    )

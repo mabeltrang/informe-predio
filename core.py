@@ -173,16 +173,43 @@ def get_geoforma(
 
 
 def texto_clima(stats: dict, start: int, end: int) -> str:
+    t = stats['t_media']
+    clima_termico = "cálido" if t > 24 else "templado" if t > 18 else "frío" if t > 12 else "muy frío/páramo"
     return (
-        f"El régimen de precipitación es {stats['regimen']}, con una precipitación anual promedio de "
-        f"{stats['prec_anual']:.0f} mm para el periodo {start}-{end}. Aplicando el criterio de Gaussen "
-        f"(meses secos cuando P < 2T), se identifican {stats['n_secos']} meses secos por año. "
-        f"La precipitación mensual oscila con valores cercanos a 0 mm en época seca y picos de hasta "
-        f"{stats['prec_max_mes']:.0f} mm. La temperatura media mensual se mantiene entre "
-        f"{stats['t_min']:.1f}°C y {stats['t_max']:.1f}°C, con una media aproximada de "
-        f"{stats['t_media']:.1f}°C.\n\n"
+        f"El clima del predio se clasifica predominantemente como {clima_termico}, "
+        f"con una temperatura media mensual que varía entre {stats['t_min']:.1f}°C y {stats['t_max']:.1f}°C "
+        f"(promedio general de {stats['t_media']:.1f}°C).\n\n"
+        f"El régimen de precipitación es {stats['regimen']}, alcanzando un acumulado anual promedio de "
+        f"{stats['prec_anual']:.0f} mm para el periodo {start}-{end}. Durante la época seca las lluvias "
+        f"disminuyen significativamente, identificándose {stats['n_secos']} meses secos por año "
+        f"(criterio de Gaussen, P < 2T). En la temporada húmeda, los aportes hídricos llegan a topes de "
+        f"{stats['prec_max_mes']:.0f} mm mensuales.\n\n"
         f"Fuente: NASA Prediction Of Worldwide Energy Resources (POWER), {start}-{end}. Elaboración propia."
     )
+
+def generate_docx(clima_txt: str, geo_txt: str, precip_png: bytes, temp_png: bytes) -> bytes:
+    from docx import Document
+    from docx.shared import Inches
+    import io
+    
+    doc = Document()
+    doc.add_heading('Informe de Aprovechamiento Forestal', 0)
+    
+    doc.add_heading('1. Análisis Climático', level=1)
+    doc.add_paragraph(clima_txt)
+    
+    doc.add_picture(io.BytesIO(precip_png), width=Inches(5.5))
+    doc.add_picture(io.BytesIO(temp_png), width=Inches(5.5))
+    
+    doc.add_heading('2. Análisis Geomorfológico', level=1)
+    if geo_txt:
+        doc.add_paragraph(geo_txt)
+    else:
+        doc.add_paragraph("No se encontró información geomorfológica para el predio solicitado.")
+        
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
 
 
 def texto_geoforma(simbolo: str, df_uc: pd.DataFrame) -> str:
