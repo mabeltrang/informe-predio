@@ -165,8 +165,12 @@ def get_geoforma(
     inter["_area"] = inter.geometry.area
     simbolo = inter.groupby(campo)["_area"].sum().idxmax()
 
-    # Geometría completa de la UC dominante en WGS84
-    uc_match = uc_proj[uc_proj[campo].astype(str) == str(simbolo)]
+    # Solo los polígonos de la UC dominante que intersectan el predio
+    predio_geom_proj = predio_proj.geometry.iloc[0]
+    uc_match = uc_proj[
+        (uc_proj[campo].astype(str) == str(simbolo)) &
+        (uc_proj.intersects(predio_geom_proj))
+    ]
     uc_geom_4326 = uc_match.to_crs("EPSG:4326").geometry.unary_union
 
     try:
