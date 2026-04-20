@@ -179,36 +179,34 @@ def get_geoforma(
 
 
 def make_mapa_satelital(predio_geom, uc_geom=None) -> Optional[bytes]:
-    """Genera PNG satelital con el polígono del predio y la geoforma superpuestos."""
+    """Genera PNG satelital con el polígono de la geoforma (UC) al estilo del informe de referencia."""
     try:
         import contextily as ctx
 
-        predio_gdf = gpd.GeoDataFrame(geometry=[predio_geom], crs="EPSG:4326")
-        predio_web = predio_gdf.to_crs(epsg=3857)
-
-        fig, ax = plt.subplots(figsize=(8, 8))
+        fig, ax = plt.subplots(figsize=(10, 8))
 
         if uc_geom is not None:
             uc_gdf = gpd.GeoDataFrame(geometry=[uc_geom], crs="EPSG:4326")
             uc_web = uc_gdf.to_crs(epsg=3857)
-            uc_web.plot(ax=ax, facecolor="#FFD700", edgecolor="#FF8C00",
-                        alpha=0.35, linewidth=2.5, zorder=2, label="Geoforma (UC)")
+            # Rosa semi-transparente igual al documento de referencia
+            uc_web.plot(ax=ax, facecolor="#F4A0C0", edgecolor="#CC3366",
+                        alpha=0.55, linewidth=1.5, zorder=2)
+            # Zoom a la geoforma con 5 % de margen
+            bounds = uc_web.total_bounds
+            dx = (bounds[2] - bounds[0]) * 0.05
+            dy = (bounds[3] - bounds[1]) * 0.05
+        else:
+            predio_gdf = gpd.GeoDataFrame(geometry=[predio_geom], crs="EPSG:4326")
+            predio_web = predio_gdf.to_crs(epsg=3857)
+            bounds = predio_web.total_bounds
+            dx = max((bounds[2] - bounds[0]) * 0.3, 1000)
+            dy = max((bounds[3] - bounds[1]) * 0.3, 1000)
 
-        predio_web.plot(ax=ax, facecolor="none", edgecolor="#FF0000",
-                        linewidth=2.5, zorder=3, label="Predio")
-
-        # Zoom al predio con buffer de 30 % (mínimo 500 m)
-        bounds = predio_web.total_bounds
-        dx = max((bounds[2] - bounds[0]) * 0.3, 500)
-        dy = max((bounds[3] - bounds[1]) * 0.3, 500)
         ax.set_xlim(bounds[0] - dx, bounds[2] + dx)
         ax.set_ylim(bounds[1] - dy, bounds[3] + dy)
 
         ctx.add_basemap(ax, source=ctx.providers.Esri.WorldImagery, zoom="auto")
-
         ax.set_axis_off()
-        ax.legend(loc="upper right", fontsize=9, framealpha=0.8)
-        ax.set_title("Imagen satelital — predio y unidad geomorfológica", fontsize=11, pad=8)
 
         buf = io.BytesIO()
         fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
