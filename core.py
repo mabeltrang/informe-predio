@@ -141,8 +141,10 @@ def get_geoforma(
     uc_shp_path: Path = UC_SHP_PATH,
     excel_path:  Path = EXCEL_PATH,
     campo: str = "SimboloUC",
-) -> Tuple[Optional[str], Optional[pd.DataFrame]]:
-    """Intersecta el predio con el shapefile de UC y busca en el diccionario Excel."""
+) -> Tuple[Optional[str], Optional[pd.DataFrame], Optional[object]]:
+    """Intersecta el predio con el shapefile de UC y busca en el diccionario Excel.
+    Retorna (simbolo, df_diccionario, geometria_uc_en_4326).
+    """
     if not Path(uc_shp_path).exists():
         raise FileNotFoundError(f"Shapefile no encontrado: {uc_shp_path}")
     if not Path(excel_path).exists():
@@ -158,10 +160,14 @@ def get_geoforma(
 
     inter = gpd.overlay(predio_proj, uc_proj, how="intersection")
     if inter.empty:
-        return None, None
+        return None, None, None
 
     inter["_area"] = inter.geometry.area
     simbolo = inter.groupby(campo)["_area"].sum().idxmax()
+
+    # Geometría completa de la UC dominante en WGS84
+    uc_match = uc_proj[uc_proj[campo].astype(str) == str(simbolo)]
+    uc_geom_4326 = uc_match.to_crs("EPSG:4326").geometry.unary_union
 
     try:
         df_dict = pd.read_excel(str(excel_path), engine="xlrd")
@@ -169,7 +175,48 @@ def get_geoforma(
         df_dict = pd.read_excel(str(excel_path), engine="openpyxl")
 
     df_uc = df_dict[df_dict[campo].astype(str) == str(simbolo)]
-    return simbolo, (df_uc if not df_uc.empty else None)
+    return simbolo, (df_uc if not df_uc.empty else None), uc_geom_4326
+
+
+def make_mapa_satelital(predio_geom, uc_geom=None) -> Optional[bytes]:
+    """Genera PNG satelital con el polígono del predio y la geoforma superpuestos."""
+    try:
+        import contextily as ctx
+
+        predio_gdf = gpd.GeoDataFrame(geometry=[predio_geom], crs="EPSG:4326")
+        predio_web = predio_gdf.to_crs(epsg=3857)
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+
+        if uc_geom is not None:
+            uc_gdf = gpd.GeoDataFrame(geometry=[uc_geom], crs="EPSG:4326")
+            uc_web = uc_gdf.to_crs(epsg=3857)
+            uc_web.plot(ax=ax, facecolor="#FFD700", edgecolor="#FF8C00",
+                        alpha=0.35, linewidth=2.5, zorder=2, label="Geoforma (UC)")
+
+        predio_web.plot(ax=ax, facecolor="none", edgecolor="#FF0000",
+                        linewidth=2.5, zorder=3, label="Predio")
+
+        # Zoom al predio con buffer de 30 % (mínimo 500 m)
+        bounds = predio_web.total_bounds
+        dx = max((bounds[2] - bounds[0]) * 0.3, 500)
+        dy = max((bounds[3] - bounds[1]) * 0.3, 500)
+        ax.set_xlim(bounds[0] - dx, bounds[2] + dx)
+        ax.set_ylim(bounds[1] - dy, bounds[3] + dy)
+
+        ctx.add_basemap(ax, source=ctx.providers.Esri.WorldImagery, zoom="auto")
+
+        ax.set_axis_off()
+        ax.legend(loc="upper right", fontsize=9, framealpha=0.8)
+        ax.set_title("Imagen satelital — predio y unidad geomorfológica", fontsize=11, pad=8)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+        plt.close(fig)
+        return buf.getvalue()
+    except Exception as e:
+        logger.warning(f"No se pudo generar imagen satelital: {type(e).__name__}: {e}")
+        return None
 
 
 def texto_clima(stats: dict, start: int, end: int) -> str:
@@ -187,27 +234,34 @@ def texto_clima(stats: dict, start: int, end: int) -> str:
         f"Fuente: NASA Prediction Of Worldwide Energy Resources (POWER), {start}-{end}. Elaboración propia."
     )
 
-def generate_docx(clima_txt: str, geo_txt: str, precip_png: bytes, temp_png: bytes) -> bytes:
+def generate_docx(
+    clima_txt: str,
+    geo_txt: str,
+    precip_png: bytes,
+    temp_png: bytes,
+    mapa_png: Optional[bytes] = None,
+) -> bytes:
     from docx import Document
     from docx.shared import Inches
-    import io
-    
+    import io as _io
+
     doc = Document()
     doc.add_heading('Informe de Aprovechamiento Forestal', 0)
-    
+
     doc.add_heading('1. Análisis Climático', level=1)
     doc.add_paragraph(clima_txt)
-    
-    doc.add_picture(io.BytesIO(precip_png), width=Inches(5.5))
-    doc.add_picture(io.BytesIO(temp_png), width=Inches(5.5))
-    
+    doc.add_picture(_io.BytesIO(precip_png), width=Inches(5.5))
+    doc.add_picture(_io.BytesIO(temp_png), width=Inches(5.5))
+
     doc.add_heading('2. Análisis Geomorfológico', level=1)
+    if mapa_png:
+        doc.add_picture(_io.BytesIO(mapa_png), width=Inches(5.5))
     if geo_txt:
         doc.add_paragraph(geo_txt)
     else:
         doc.add_paragraph("No se encontró información geomorfológica para el predio solicitado.")
-        
-    buf = io.BytesIO()
+
+    buf = _io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
 

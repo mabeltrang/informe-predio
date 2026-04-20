@@ -7,4 +7,5 @@ pandas
 openpyxl
 xlrd
 matplotlib
+contextily
 python-docx

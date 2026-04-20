@@ -1,7 +1,7 @@
 import streamlit as st
 from core import (
     parse_kmz, fetch_power, calc_stats, make_charts,
-    get_geoforma, texto_clima, texto_geoforma, generate_docx,
+    get_geoforma, make_mapa_satelital, texto_clima, texto_geoforma, generate_docx,
     UC_SHP_PATH, EXCEL_PATH,
 )
 
@@ -37,13 +37,17 @@ if analizar and kmz_file is not None:
             # 3. Geomorfología
             geo_txt = None
             geo_warn = None
+            mapa_png = None
             try:
-                simbolo, df_uc = get_geoforma(predio_geom)
+                simbolo, df_uc, uc_geom = get_geoforma(predio_geom)
                 if df_uc is not None:
                     geo_txt = texto_geoforma(simbolo, df_uc)
                     st.caption(f"Unidad UC identificada: **{simbolo}**")
+                    with st.spinner("Generando imagen satelital..."):
+                        mapa_png = make_mapa_satelital(predio_geom, uc_geom)
                 else:
                     geo_warn = "El predio no intersecta ninguna UC en el shapefile."
+                    mapa_png = make_mapa_satelital(predio_geom)
             except FileNotFoundError as e:
                 geo_warn = str(e)
             except Exception as e:
@@ -66,6 +70,12 @@ if analizar and kmz_file is not None:
     if geo_warn:
         st.warning(geo_warn)
 
+    if mapa_png:
+        st.subheader("Imagen satelital — predio y geoforma")
+        st.image(mapa_png, use_container_width=True)
+    else:
+        st.warning("No se pudo generar la imagen satelital. Verifica la conexión a internet o los logs del servidor.")
+
     if geo_txt:
         st.subheader("Bloque: Geomorfología")
         st.text_area("", value=geo_txt, height=250, key="geo_txt", label_visibility="collapsed")
@@ -74,7 +84,7 @@ if analizar and kmz_file is not None:
 
     st.divider()
     st.subheader("📄 Descargar Informe Completo")
-    docx_bytes = generate_docx(clima_txt, geo_txt, precip_png, temp_png)
+    docx_bytes = generate_docx(clima_txt, geo_txt, precip_png, temp_png, mapa_png)
     st.download_button(
         "Descargar consolidado en Word (.docx)", 
         data=docx_bytes,
