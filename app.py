@@ -2,6 +2,7 @@ import streamlit as st
 from core import (
     parse_kmz, fetch_power, calc_stats, make_charts,
     get_geoforma, make_mapa_satelital, texto_clima, texto_geoforma, generate_docx,
+    calc_biotemperatura, clasificar_holdridge, texto_holdridge,
     UC_SHP_PATH, EXCEL_PATH,
 )
 
@@ -33,6 +34,11 @@ if analizar and kmz_file is not None:
             stats = calc_stats(df)
             precip_png, temp_png = make_charts(stats["monthly"])
             clima_txt = texto_clima(stats, int(start_year), int(end_year))
+
+            # 2.5 Zona de vida (Holdridge)
+            biotemp = calc_biotemperatura(stats["monthly"])
+            holdridge = clasificar_holdridge(biotemp, stats["prec_anual"])
+            holdridge_txt = texto_holdridge(holdridge, stats["prec_anual"])
 
             # 3. Geomorfología
             geo_txt = None
@@ -67,6 +73,13 @@ if analizar and kmz_file is not None:
     st.download_button("Descargar texto clima (.txt)", data=clima_txt,
                        file_name="clima.txt", mime="text/plain")
 
+    st.subheader("Bloque: Zona de Vida (Holdridge)")
+    st.caption(f"Clasificación: **{holdridge['codigo']} — {holdridge['nombre']}**")
+    st.text_area("", value=holdridge_txt, height=200, key="holdridge_txt",
+                 label_visibility="collapsed")
+    st.download_button("Descargar texto Holdridge (.txt)", data=holdridge_txt,
+                       file_name="holdridge.txt", mime="text/plain")
+
     if geo_warn:
         st.warning(geo_warn)
 
@@ -84,9 +97,10 @@ if analizar and kmz_file is not None:
 
     st.divider()
     st.subheader("📄 Descargar Informe Completo")
-    docx_bytes = generate_docx(clima_txt, geo_txt, precip_png, temp_png, mapa_png)
+    docx_bytes = generate_docx(clima_txt, geo_txt, precip_png, temp_png, mapa_png,
+                               holdridge_txt=holdridge_txt)
     st.download_button(
-        "Descargar consolidado en Word (.docx)", 
+        "Descargar consolidado en Word (.docx)",
         data=docx_bytes,
         file_name="informe_predio.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
